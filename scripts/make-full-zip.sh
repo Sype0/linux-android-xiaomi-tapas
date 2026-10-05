@@ -8,6 +8,7 @@
 # run this locally with a recovery ROM you downloaded yourself.
 #
 # Usage: make-full-zip.sh STOCK_RECOVERY_ROM.zip DROIDIAN_TAPAS.zip OUTPUT.zip [WORKDIR]
+#        FIRMWARE=no make-full-zip.sh ...   (do not bundle/flash firmware)
 #
 # Needs: python3, lpmake, simg2img, unzip, zip
 
@@ -23,8 +24,12 @@ SCRIPTS="$(dirname "$(realpath "${0}")")"
 SUPER_SIZE=7516192768
 SUPER_GROUP=xiaomi_dynamic_partitions_a
 SUPER_PARTITIONS="odm vendor vendor_dlkm"
-# Flash order: what Droidian needs first, bootloader stages last
-PHYSICAL="vendor_boot dtbo modem dsp bluetooth featenabler qupfw imagefv uefisecapp keymaster devcfg rpm hyp tz xbl_config xbl abl"
+# Flash order: what Droidian needs first, bootloader stages last.
+# FIRMWARE=no leaves the firmware partitions (modem, tz, xbl, abl, ...) alone.
+PHYSICAL="vendor_boot dtbo"
+if [ "${FIRMWARE:-yes}" != "no" ]; then
+	PHYSICAL="${PHYSICAL} modem dsp bluetooth featenabler qupfw imagefv uefisecapp keymaster devcfg rpm hyp tz xbl_config xbl abl"
+fi
 
 mkdir -p "${WORKDIR}/images" "${WORKDIR}/zip"
 cd "${WORKDIR}"
