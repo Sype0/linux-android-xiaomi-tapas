@@ -63,7 +63,7 @@ CLANG_VERSION = 14.0-r450784d
 CLANG_CUSTOM = 0
 BUILD_PATH = /usr/lib/llvm-android-$(CLANG_VERSION)/bin
 
-DEB_TOOLCHAIN = linux-initramfs-halium-generic:arm64, binutils-aarch64-linux-gnu, gcc-4.9-aarch64-linux-android, g++-4.9-aarch64-linux-android, libgcc-4.9-dev-aarch64-linux-android-cross, libelf-dev, pahole | dwarves
+DEB_TOOLCHAIN = linux-initramfs-halium-generic:arm64, binutils-aarch64-linux-gnu, gcc-4.9-aarch64-linux-android, g++-4.9-aarch64-linux-android, libgcc-4.9-dev-aarch64-linux-android-cross, libelf-dev, dwarves
 DEB_BUILD_ON = amd64
 DEB_BUILD_FOR = arm64
 KERNEL_ARCH = arm64
