@@ -60,3 +60,12 @@ kernel packages into it and publishes a single recovery zip on the
 The zip installs the rootfs to `userdata` and flashes `boot` and `init_boot`
 of the active slot. To go back, flash the backed up images or the stock
 firmware.
+
+### Zip with the stock base included
+
+`scripts/make-full-zip.sh` builds, locally, a zip that also carries the stock
+MIUI 14 base (vendor, odm, vendor_dlkm, vendor_boot, dtbo and firmware) taken
+from a recovery ROM you downloaded yourself, so it can be flashed from any
+ROM. It replaces `super` with one that only holds those three partitions:
+Android will not boot afterwards until the stock ROM is flashed again.
+Xiaomi's images are not redistributed here.
