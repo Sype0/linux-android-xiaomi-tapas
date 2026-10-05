@@ -1,0 +1,12 @@
+/android_kernel_common/
+/out/
+/prebuilt-modules/
+/debian/control
+/debian/changelog
+/debian/android-kernel-info.mk
+/debian/path-override/
+/debian/linux-*/
+/debian/files
+/debian/*.substvars
+/debian/*.debhelper*
+/debian/.debhelper/

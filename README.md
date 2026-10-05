@@ -1,0 +1,55 @@
+# linux-android-xiaomi-tapas
+
+Droidian kernel packaging for the Xiaomi Redmi Note 12 4G (`tapas` / `topaz`,
+Snapdragon 685 / SM6225, android13-5.15 GKI).
+
+**Status: builds on GitHub Actions, not yet booted on a device.**
+
+## How it works
+
+tapas is a GKI device: the kernel `Image` lives in `boot`, the generic ramdisk
+in `init_boot`, and every hardware driver is a vendor module in `vendor_boot`
+and `vendor_dlkm`. Instead of rebuilding those ~320 modules, this follows the
+approach of Droidian's `linux-android-common-*` kernels:
+
+- build the GKI `Image` with the Halium/Droidian options enabled
+  (`droidian/common_fragments/*.config`, `droidian/tapas.config`);
+- keep the module ABI (KMI) unchanged so the stock vendor modules still load.
+  `CONFIG_SYSVIPC` would shift `task_struct`, so `scripts/sysvipc-kabi.py`
+  moves its fields into the Android KABI padding;
+- put the Halium initramfs into `init_boot.img`; `vendor_boot`, `dtbo` and the
+  vendor partitions stay stock.
+
+Kernel sources are not stored here. `scripts/prepare-kernel.sh` fetches a
+pinned commit of the community android13-5.15 tree for this device.
+
+## CI
+
+`.github/workflows/build.yml` builds with Droidian's `build-essential` image
+and `releng-build-package`, then runs `scripts/check-kmi.py`, which compares
+the symbol CRCs of the built kernel with what the prebuilt tapas vendor
+modules expect. The job fails if any module would be rejected.
+
+Artifact `droidian-kernel-tapas`:
+
+| File | Purpose |
+| --- | --- |
+| `boot.img` | kernel (+ Halium initramfs), for the `boot` partition |
+| `init_boot.img` | Halium initramfs, for the `init_boot` partition |
+| `recovery.img` | Droidian recovery-mode boot image (not needed for install) |
+| `linux-*.deb` | Droidian kernel packages |
+| `kmi-report.txt` | vendor module ABI check result |
+| `kernel.config`, `Module.symvers`, `System.map` | build references |
+
+## Installing (untested, wipes the phone)
+
+1. Unlocked bootloader, stock MIUI 14 (Android 13) firmware on both slots.
+2. Back up `boot`, `init_boot`, `vendor_boot`, `dtbo` and `vbmeta`.
+3. Flash the Droidian `api33` arm64 rootfs zip from
+   [droidian-images](https://github.com/droidian-images/droidian/releases)
+   with a custom recovery (this formats/uses `userdata`).
+4. `fastboot flash boot boot.img` and `fastboot flash init_boot init_boot.img`.
+5. `fastboot --disable-verity --disable-verification flash vbmeta vbmeta.img`
+   using the stock `vbmeta.img`.
+
+To go back, flash the backed up images or the stock firmware.
