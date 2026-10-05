@@ -17,8 +17,12 @@ approach of Droidian's `linux-android-common-*` kernels:
 - keep the module ABI (KMI) unchanged so the stock vendor modules still load.
   `CONFIG_SYSVIPC` would shift `task_struct`, so `scripts/sysvipc-kabi.py`
   moves its fields into the Android KABI padding;
-- put the Halium initramfs into `init_boot.img`; `vendor_boot`, `dtbo` and the
-  vendor partitions stay stock.
+- embed the Halium initramfs into the kernel, because `init_boot` (8 MiB) is
+  too small for it. The bootloader unpacks the `vendor_boot` and `init_boot`
+  ramdisks on top of it: the stock `vendor_boot` provides the first stage
+  modules and their `modules.load`, and `init_boot.img` is a stub so Android's
+  `/init` does not replace Halium's;
+- `vendor_boot`, `dtbo` and the vendor partitions stay stock.
 
 Kernel sources are not stored here. `scripts/prepare-kernel.sh` fetches a
 pinned commit of the community android13-5.15 tree for this device.
@@ -34,8 +38,8 @@ Artifact `droidian-kernel-tapas`:
 
 | File | Purpose |
 | --- | --- |
-| `boot.img` | kernel (+ Halium initramfs), for the `boot` partition |
-| `init_boot.img` | Halium initramfs, for the `init_boot` partition |
+| `boot.img` | kernel with embedded Halium initramfs, for the `boot` partition |
+| `init_boot.img` | stub ramdisk, for the `init_boot` partition |
 | `recovery.img` | Droidian recovery-mode boot image (not needed for install) |
 | `linux-*.deb` | Droidian kernel packages |
 | `kmi-report.txt` | vendor module ABI check result |

@@ -8,3 +8,30 @@ include /usr/share/linux-packaging-snippets/kernel-snippet.mk
 
 %:
 	dh $@
+
+# The generic ramdisk slot of this device (init_boot) is 8 MiB, too small for
+# the Halium initramfs, so the initramfs is embedded into the kernel
+# (CONFIG_INITRAMFS_SOURCE, see droidian.config). The path is relative to the
+# kernel build directory.
+out/KERNEL_OBJ/droidian-initramfs.cpio:
+	mkdir -p $(KERNEL_OUT)
+	lz4 -c -d /usr/lib/$(DEB_HOST_MULTIARCH)/halium-generic-initramfs/initrd.img-halium-generic.lz4 > $@
+
+out/KERNEL_OBJ/.config: out/KERNEL_OBJ/droidian-initramfs.cpio
+
+# The bootloader unpacks the init_boot ramdisk on top of the embedded
+# initramfs. The stock one would replace /init with Android's, so ship one
+# that only holds a marker file.
+out/KERNEL_OBJ/stub-init_boot.img:
+	mkdir -p $(KERNEL_OUT)/stub-init_boot
+	touch $(KERNEL_OUT)/stub-init_boot/.droidian-init_boot
+	cd $(KERNEL_OUT)/stub-init_boot && find . | cpio -o -H newc -R 0:0 | lz4 -l -9 > ../stub-init_boot.cpio.lz4
+	mkbootimg --header_version $(KERNEL_BOOTIMAGE_VERSION) \
+		--ramdisk $(KERNEL_OUT)/stub-init_boot.cpio.lz4 \
+		--pagesize $(KERNEL_BOOTIMAGE_PAGE_SIZE) \
+		--os_version $(KERNEL_BOOTIMAGE_OS_VERSION) \
+		--os_patch_level $(KERNEL_BOOTIMAGE_PATCH_LEVEL) \
+		-o $@
+
+override_dh_auto_install: out/KERNEL_OBJ/stub-init_boot.img
+	cp -v $(KERNEL_OUT)/stub-init_boot.img $(CURDIR)/debian/linux-bootimage-$(KERNEL_RELEASE)/boot/init_boot.img-$(KERNEL_RELEASE)

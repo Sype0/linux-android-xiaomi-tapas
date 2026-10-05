@@ -47,7 +47,21 @@ jobs:
         run: |
           mkdir -p dist
           sudo chown -R "$(id -u):$(id -g)" out "${PACKAGES_DIR}"
-          cp out/KERNEL_OBJ/boot.img out/KERNEL_OBJ/init_boot.img out/KERNEL_OBJ/recovery.img dist/
+          cp out/KERNEL_OBJ/boot.img out/KERNEL_OBJ/recovery.img dist/
+          cp out/KERNEL_OBJ/stub-init_boot.img dist/init_boot.img
+          # Partition sizes of tapas (boot: 128 MiB, init_boot: 8 MiB)
+          check_size() {
+            size=$(stat -c %s "dist/${1}")
+            echo "${1}: ${size} bytes (partition: ${2})"
+            [ "${size}" -le "${2}" ] || { echo "::error::${1} does not fit its partition"; exit 1; }
+          }
+          check_size boot.img 134217728
+          check_size recovery.img 104857600
+          check_size init_boot.img 8388608
+          # The Halium initramfs must be embedded into the kernel
+          embedded=$(stat -c %s out/KERNEL_OBJ/usr/initramfs_inc_data)
+          echo "Embedded initramfs: ${embedded} bytes"
+          [ "${embedded}" -gt 1000000 ] || { echo "::error::initramfs is not embedded into the kernel"; exit 1; }
           cp out/KERNEL_OBJ/.config dist/kernel.config
           cp out/KERNEL_OBJ/Module.symvers out/KERNEL_OBJ/System.map dist/
           cp "${PACKAGES_DIR}"/*.deb dist/
@@ -57,7 +71,7 @@ jobs:
             echo "### Kernel"
             echo '```'
             strings out/KERNEL_OBJ/vmlinux | grep -m1 '^Linux version' || true
-            grep -E '^(# )?CONFIG_(SYSVIPC|PID_NS|USER_NS|IPC_NS|VT|DEVTMPFS|FHANDLE|SQUASHFS|TMPFS_POSIX_ACL|AUTOFS_FS|LTO_CLANG_THIN|CFI_CLANG|MODVERSIONS|MODULE_SIG_PROTECT|DEBUG_INFO_BTF|CMDLINE)[ =]' dist/kernel.config
+            grep -E '^(# )?CONFIG_(SYSVIPC|PID_NS|USER_NS|IPC_NS|VT|DEVTMPFS|FHANDLE|SQUASHFS|TMPFS_POSIX_ACL|AUTOFS_FS|LTO_CLANG_THIN|CFI_CLANG|MODVERSIONS|MODULE_SIG_PROTECT|DEBUG_INFO_BTF|CMDLINE|INITRAMFS_SOURCE)[ =]' dist/kernel.config
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 

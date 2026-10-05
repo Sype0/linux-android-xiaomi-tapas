@@ -35,8 +35,9 @@ KERNEL_BOOTIMAGE_OS_VERSION = 13.0.0
 KERNEL_BOOTIMAGE_VERSION = 4
 KERNEL_INITRAMFS_COMPRESSION = lz4
 
-# tapas loads the generic ramdisk from init_boot; vendor_boot stays stock
-DEVICE_HAS_INIT_BOOT = 1
+# The Halium initramfs is embedded into the kernel and debian/rules ships a
+# stub init_boot (see there); vendor_boot stays stock
+DEVICE_HAS_INIT_BOOT = 0
 KERNEL_BOOTIMAGE_GENERATE_VENDOR_BOOT = 0
 
 DEVICE_VBMETA_REQUIRED = 0
