@@ -47,13 +47,16 @@ Artifact `droidian-kernel-tapas`:
 
 ## Installing (untested, wipes the phone)
 
-1. Unlocked bootloader, stock MIUI 14 (Android 13) firmware on both slots.
-2. Back up `boot`, `init_boot`, `vendor_boot`, `dtbo` and `vbmeta`.
-3. Flash the Droidian `api33` arm64 rootfs zip from
-   [droidian-images](https://github.com/droidian-images/droidian/releases)
-   with a custom recovery (this formats/uses `userdata`).
-4. `fastboot flash boot boot.img` and `fastboot flash init_boot init_boot.img`.
-5. `fastboot --disable-verity --disable-verification flash vbmeta vbmeta.img`
-   using the stock `vbmeta.img`.
+The `package` job takes Droidian's generic `api33` rootfs, installs the
+kernel packages into it and publishes a single recovery zip on the
+[releases page](https://github.com/Sype0/linux-android-xiaomi-tapas/releases/tag/latest).
 
-To go back, flash the backed up images or the stock firmware.
+1. Unlocked bootloader, stock MIUI 14 (Android 13) firmware. The installer
+   checks the device and the vendor version and refuses anything else before
+   writing.
+2. Back up `boot`, `init_boot`, `vendor_boot`, `dtbo` and `vbmeta`.
+3. In a custom recovery: Format Data, then flash the zip.
+
+The zip installs the rootfs to `userdata` and flashes `boot` and `init_boot`
+of the active slot. To go back, flash the backed up images or the stock
+firmware.

@@ -102,3 +102,97 @@ jobs:
         run: |
           echo "::error::The built kernel is not ABI compatible with the stock vendor modules, see kmi-report.txt"
           exit 1
+
+  package:
+    name: Build recovery zip
+    needs: build
+    # Native arm64 runner, so the kernel packages can be installed into the
+    # rootfs with a plain chroot
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: droidian-kernel-tapas
+          path: dist
+
+      - name: Download the Droidian api33 rootfs
+        run: |
+          asset=$(gh api repos/droidian-images/droidian/releases/tags/nightly \
+            --jq '[.assets[] | select(.name | test("phosh-phone-rootfs-api33-arm64.*\\.zip$"))][0].name')
+          [ -n "${asset}" ] && [ "${asset}" != "null" ] || { echo "::error::Droidian api33 rootfs not found"; exit 1; }
+          echo "Using ${asset}"
+          echo "ROOTFS_ASSET=${asset}" >> "${GITHUB_ENV}"
+          gh release download nightly --repo droidian-images/droidian --pattern "${asset}" --output rootfs.zip
+          mkdir work
+          unzip -q rootfs.zip -d work
+          rm rootfs.zip
+          ls -la work work/data
+
+      - name: Install the kernel into the rootfs
+        run: |
+          img=work/data/rootfs.img
+          sudo e2fsck -fy "${img}" || [ $? -le 1 ]
+          size_mb=$(( $(stat -c %s "${img}") / 1048576 ))
+          sudo resize2fs "${img}" "$(( size_mb + 512 ))M"
+          mkdir mnt
+          sudo mount -o loop "${img}" mnt
+          sudo mkdir -p mnt/tmp/kernel-debs
+          sudo cp dist/linux-image-*.deb dist/linux-bootimage-*.deb mnt/tmp/kernel-debs/
+          for fs in proc sys dev; do sudo mount --bind "/${fs}" "mnt/${fs}"; done
+          if ! sudo chroot mnt dpkg -s flash-bootimage >/dev/null 2>&1; then
+            sudo cp --remove-destination /etc/resolv.conf mnt/etc/resolv.conf.ci
+            sudo chroot mnt sh -c 'mv /etc/resolv.conf /etc/resolv.conf.orig 2>/dev/null; cp /etc/resolv.conf.ci /etc/resolv.conf; apt-get update && apt-get install -y --no-install-recommends flash-bootimage; s=$?; rm -f /etc/resolv.conf /etc/resolv.conf.ci; mv /etc/resolv.conf.orig /etc/resolv.conf 2>/dev/null; exit $s'
+          fi
+          sudo chroot mnt sh -c 'dpkg -i /tmp/kernel-debs/*.deb'
+          sudo rm -rf mnt/tmp/kernel-debs
+          sudo chroot mnt dpkg -l 'linux-*tapas*'
+          ls -la mnt/boot
+          ls mnt/boot/boot.img-* mnt/boot/init_boot.img-* mnt/var/lib/lxc/android/android-rootfs.img
+          cmp mnt/boot/boot.img-* dist/boot.img
+          cmp mnt/boot/init_boot.img-* dist/init_boot.img
+          for fs in dev sys proc; do sudo umount "mnt/${fs}"; done
+          sudo umount mnt
+          sudo e2fsck -fy "${img}" || [ $? -le 1 ]
+
+      - name: Build the zip
+        run: |
+          python3 scripts/patch-installer.py work
+          name="droidian-UNOFFICIAL-phosh-phone-xiaomi_tapas-api33-arm64_$(date -u +%Y%m%d).zip"
+          (cd work && zip -q -r "../${name}" META-INF tools setup.sh data)
+          size=$(stat -c %s "${name}")
+          echo "${name}: ${size} bytes"
+          [ "${size}" -lt 2147483648 ] || { echo "::error::zip is too big for a release asset"; exit 1; }
+          unzip -l "${name}"
+          sha256sum "${name}" > "${name}.sha256"
+          echo "ZIP_NAME=${name}" >> "${GITHUB_ENV}"
+
+      - name: Publish release
+        run: |
+          cat > notes.md <<NOTES
+          Droidian for Xiaomi Redmi Note 12 4G (tapas/topaz), built from ${GITHUB_SHA::7}.
+
+          **Untested: this has not been booted on a device yet.**
+
+          Base rootfs: \`${ROOTFS_ASSET}\`
+
+          Install (wipes the phone):
+          1. Be on stock MIUI 14 (Android 13) firmware with an unlocked bootloader. The installer refuses any other vendor.
+          2. Back up \`boot\`, \`init_boot\`, \`vendor_boot\`, \`dtbo\` and \`vbmeta\`.
+          3. In a custom recovery: Format Data, then flash \`${ZIP_NAME}\`.
+
+          The zip installs the rootfs to \`userdata\` and flashes \`boot\` and \`init_boot\` of the active slot.
+          The separate images are attached for restoring or flashing with fastboot.
+          NOTES
+          sed -i 's/^          //' notes.md
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest --prerelease --target "${GITHUB_SHA}" \
+            --title "Droidian for tapas ($(date -u +%Y-%m-%d))" --notes-file notes.md \
+            "${ZIP_NAME}" "${ZIP_NAME}.sha256" dist/boot.img dist/init_boot.img dist/kmi-report.txt
